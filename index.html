@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Money Tracker</title>
+    <link rel="manifest" href="manifest.json">
     <style>
         :root {
             --primary: #1e3a8a;
@@ -1117,6 +1118,15 @@
             renderAll();
         }
         init();
+
+                init();
+
+        // Registrazione del Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
     </script>
 </body>
 </html>

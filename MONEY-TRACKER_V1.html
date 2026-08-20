@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Money Tracker</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e3a8a">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
     <style>
         :root {
             --primary: #1e3a8a;
@@ -46,6 +43,7 @@
             position: sticky;
             top: 56px;
             z-index: 10;
+            flex-wrap: wrap;
         }
         nav button {
             flex: 1;
@@ -155,6 +153,50 @@
         }
         .amount-positive { color: var(--success); font-weight: 600; }
         .amount-negative { color: var(--danger); font-weight: 600; }
+        /* Stili per lo storico */
+        .year-container { margin-bottom: 20px; }
+        .year-title {
+            background: var(--primary);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .month-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            background: #f9fafb;
+        }
+        .month-summary {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+        }
+        .month-details {
+            padding: 0 16px 16px 16px;
+            display: none;
+        }
+        .month-details.open { display: block; }
+        .transaction-mini {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.9rem;
+            border-bottom: 1px dashed var(--border);
+        }
+        .transaction-mini:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -165,6 +207,7 @@
         <button data-section="categories">Categorie</button>
         <button data-section="budgets">Budget</button>
         <button data-section="rules">Regole</button>
+        <button data-section="storico">Storico</button>
     </nav>
 
     <!-- Dashboard -->
@@ -354,6 +397,15 @@
         <div class="card">
             <h2>Regole esistenti</h2>
             <div id="rules-list"></div>
+        </div>
+    </section>
+
+    <!-- Storico -->
+    <section id="storico" class="section">
+        <div class="card">
+            <h2>Archivio storico</h2>
+            <p class="muted">Clicca su un anno per vedere i mesi, poi su un mese per i dettagli.</p>
+            <div id="storico-content"></div>
         </div>
     </section>
 
@@ -696,6 +748,97 @@
             }).join('');
         }
 
+        // ---------- Storico ----------
+        function renderStorico() {
+            const container = document.getElementById('storico-content');
+            const tx = state.transactions;
+            if (tx.length === 0) {
+                container.innerHTML = '<p class="muted">Nessun movimento registrato.</p>';
+                return;
+            }
+
+            // Raccogli gli anni unici
+            const years = [...new Set(tx.map(t => parseISO(t.date).getFullYear()))].sort((a,b) => b-a);
+
+            let html = '';
+            for (const year of years) {
+                html += `<div class="year-container">`;
+                html += `<div class="year-title" onclick="toggleYear('${year}')">📅 ${year}</div>`;
+                html += `<div id="year-${year}" style="display:none;">`;
+
+                // Mesi con movimenti
+                const monthsInYear = [...new Set(tx
+                    .filter(t => parseISO(t.date).getFullYear() === year)
+                    .map(t => t.date.substring(0,7)) // "yyyy-mm"
+                )].sort();
+
+                for (const monthKey of monthsInYear) {
+                    const [yyyy, mm] = monthKey.split('-');
+                    const monthName = new Date(year, parseInt(mm)-1, 1).toLocaleString('it-IT', { month: 'long' });
+                    const monthTx = tx.filter(t => t.date.startsWith(monthKey));
+                    const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                    const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                    const balance = income - expense;
+
+                    // Budget attivi in quel mese
+                    const firstDay = `${monthKey}-01`;
+                    const lastDayDate = new Date(year, parseInt(mm), 0);
+                    const lastDay = toISO(lastDayDate);
+                    const activeBudgets = state.budgets.filter(b => b.startDate <= lastDay && b.endDate >= firstDay);
+
+                    html += `
+                        <div class="month-item">
+                            <div class="month-header" onclick="toggleMonth('${year}-${mm}')">
+                                <span><strong>${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}</strong></span>
+                                <div class="month-summary">
+                                    <span class="amount-positive">+${formatCurrency(income)}</span>
+                                    <span class="amount-negative">-${formatCurrency(expense)}</span>
+                                    <span class="${balance >= 0 ? 'positive' : 'negative'}">${formatCurrency(balance)}</span>
+                                </div>
+                            </div>
+                            <div class="month-details" id="month-${year}-${mm}">
+                                ${activeBudgets.length > 0 ? `
+                                    <h4>Budget attivi</h4>
+                                    ${activeBudgets.map(b => {
+                                        const spent = tx.filter(t => t.type === 'expense' && t.date >= b.startDate && t.date <= b.endDate && (!b.categoryId || t.categoryId === b.categoryId)).reduce((s,t) => s+t.amount,0);
+                                        const remaining = b.amount - spent;
+                                        return `<div class="muted">• ${b.name}: ${formatCurrency(remaining)} rimanenti</div>`;
+                                    }).join('')}
+                                ` : '<p class="muted">Nessun budget attivo in questo mese.</p>'}
+
+                                <h4>Movimenti (${monthTx.length})</h4>
+                                ${monthTx.length > 0 ? monthTx.map(t => {
+                                    const sign = t.type === 'income' ? '+' : '-';
+                                    const cls = t.type === 'income' ? 'amount-positive' : 'amount-negative';
+                                    return `
+                                        <div class="transaction-mini">
+                                            <span>${t.date} · ${t.description}</span>
+                                            <span class="${cls}">${sign} ${formatCurrency(t.amount)}</span>
+                                        </div>
+                                    `;
+                                }).join('') : '<p class="muted">Nessun movimento.</p>'}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function toggleYear(year) {
+            const el = document.getElementById(`year-${year}`);
+            if (el.style.display === 'none') el.style.display = 'block';
+            else el.style.display = 'none';
+        }
+
+        function toggleMonth(key) {
+            const el = document.getElementById(`month-${key}`);
+            el.classList.toggle('open');
+        }
+
+        // ---------- Popola i select delle categorie ----------
         function populateCategorySelects() {
             const selects = ['tx-category', 'filter-category', 'budget-category', 'rule-category'];
             selects.forEach(id => {
@@ -729,6 +872,7 @@
             renderCategories();
             renderBudgets();
             renderRules();
+            renderStorico();
         }
 
         // ---------- Azioni ----------
@@ -857,6 +1001,7 @@
 
         document.getElementById('apply-filters').addEventListener('click', renderMovements);
 
+        // Navigazione
         document.querySelectorAll('nav button').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -868,17 +1013,11 @@
                     populateCategorySelects();
                     renderMovements();
                 }
+                if (sectionId === 'storico') {
+                    renderStorico();
+                }
             });
         });
-
-        // Service Worker registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('Service Worker registrato'))
-                    .catch(err => console.log('Errore SW:', err));
-            });
-        }
 
         // Inizializzazione
         function init() {

@@ -622,7 +622,7 @@
                                 categoryId: rule.categoryId || null,
                                 recurringKey: recurringKey,
                                 ruleId: rule.id,
-                                budgetId: null // inizialmente nessun budget
+                                budgetId: null
                             });
                         }
                     }
@@ -947,7 +947,6 @@
 
         function deleteBudget(id) {
             if (!confirm('Eliminare questo budget? Le spese associate non verranno eliminate.')) return;
-            // Rimuovi il budget e disassocia le transazioni
             state.budgets = state.budgets.filter(b => b.id !== id);
             state.transactions.forEach(t => { if (t.budgetId === id) t.budgetId = null; });
             saveState();
@@ -984,16 +983,15 @@
                 return;
             }
 
-            // Cerca un budget attivo per associazione automatica
             let assignedBudgetId = null;
             if (type === 'expense') {
                 const activeBudgets = state.budgets.filter(b => b.active && date >= b.startDate && date <= b.endDate && (!b.categoryId || b.categoryId === categoryId));
                 if (activeBudgets.length > 0) {
-                    assignedBudgetId = activeBudgets[0].id; // prende il primo budget attivo
+                    assignedBudgetId = activeBudgets[0].id;
                 }
             }
 
-            const newTransaction = {
+            state.transactions.push({
                 id: generateId(),
                 type,
                 amount,
@@ -1001,9 +999,8 @@
                 description,
                 categoryId,
                 budgetId: assignedBudgetId
-            };
+            });
 
-            state.transactions.push(newTransaction);
             saveState();
             document.getElementById('transaction-form').reset();
             document.getElementById('tx-date').value = toISO(new Date());
@@ -1117,8 +1114,6 @@
             populateCategorySelects();
             renderAll();
         }
-        init();
-
                 init();
 
         // Registrazione del Service Worker

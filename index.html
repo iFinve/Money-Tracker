@@ -149,8 +149,11 @@
         }
         .filters input, .filters select {
             width: auto;
-            flex: 1;
+            flex: 1 1 140px;
             min-width: 120px;
+        }
+        .filters button {
+            flex: 0 0 auto;
         }
         .amount-positive { color: var(--success); font-weight: 600; }
         .amount-negative { color: var(--danger); font-weight: 600; }
@@ -248,6 +251,8 @@
             padding: 8px 12px;
             background: var(--card, #ffffff);
             border-bottom: 1px solid var(--border, #dddddd);
+            position: relative;
+            z-index: 20;
         }
         .history-button {
             display: inline-flex;
@@ -356,16 +361,19 @@
         <div class="card">
             <h2>Elenco movimenti</h2>
             <div class="filters">
-                <input type="month" id="filter-month" value="">
+                <input type="text" id="filter-description" placeholder="Causale / descrizione">
                 <select id="filter-type">
-                    <option value="">Tutti</option>
+                    <option value="">Entrate e uscite</option>
                     <option value="income">Entrate</option>
                     <option value="expense">Uscite</option>
                 </select>
                 <select id="filter-category">
                     <option value="">Tutte le categorie</option>
                 </select>
+                <input type="date" id="filter-date-from" title="Data iniziale">
+                <input type="date" id="filter-date-to" title="Data finale">
                 <button type="button" id="apply-filters">Filtra</button>
+                <button type="button" id="clear-filters">Azzera</button>
             </div>
             <div id="transactions-list"></div>
         </div>
@@ -494,6 +502,21 @@
         <div class="card">
             <h2>Archivio storico</h2>
             <p class="muted">Clicca su un anno per vedere i mesi, poi su un mese per i dettagli.</p>
+            <div class="filters">
+                <input type="text" id="storico-filter-description" placeholder="Causale / descrizione">
+                <select id="storico-filter-type">
+                    <option value="">Entrate e uscite</option>
+                    <option value="income">Entrate</option>
+                    <option value="expense">Uscite</option>
+                </select>
+                <select id="storico-filter-category">
+                    <option value="">Tutte le categorie</option>
+                </select>
+                <input type="date" id="storico-filter-date-from" title="Data iniziale">
+                <input type="date" id="storico-filter-date-to" title="Data finale">
+                <button type="button" id="storico-apply-filters">Filtra</button>
+                <button type="button" id="storico-clear-filters">Azzera</button>
+            </div>
             <div id="storico-content"></div>
         </div>
     </section>
@@ -506,6 +529,8 @@
         let undoStack = [];
         let redoStack = [];
         let restoringHistory = false;
+        let historyReady = false;
+        let lastSavedSnapshot = null;
 
         function cloneForHistory(value) {
             return JSON.parse(JSON.stringify(value));
@@ -518,38 +543,35 @@
             if (redoButton) redoButton.disabled = redoStack.length === 0;
         }
 
-        function saveStateWithHistory(previousState) {
-            if (!restoringHistory && previousState) {
-                undoStack.push(cloneForHistory(previousState));
-                if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
-                redoStack = [];
-            }
-            saveState();
-            updateHistoryButtons();
-        }
-
         function undoLastAction() {
             if (undoStack.length === 0) return;
+
             redoStack.push(cloneForHistory(state));
+            if (redoStack.length > HISTORY_LIMIT) redoStack.shift();
+
             state = undoStack.pop();
             restoringHistory = true;
             saveState();
             restoringHistory = false;
+
             renderAll();
             updateHistoryButtons();
         }
 
         function redoLastAction() {
             if (redoStack.length === 0) return;
+
             undoStack.push(cloneForHistory(state));
+            if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+
             state = redoStack.pop();
             restoringHistory = true;
             saveState();
             restoringHistory = false;
+
             renderAll();
             updateHistoryButtons();
         }
-
 
         // ---------- Utility ----------
         function generateId() {
@@ -670,7 +692,24 @@
         }
 
         function saveState() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            const currentSnapshot = cloneForHistory(state);
+            const currentJson = JSON.stringify(currentSnapshot);
+            const previousJson = lastSavedSnapshot === null ? null : JSON.stringify(lastSavedSnapshot);
+
+            if (
+                historyReady &&
+                !restoringHistory &&
+                previousJson !== null &&
+                currentJson !== previousJson
+            ) {
+                undoStack.push(cloneForHistory(lastSavedSnapshot));
+                if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+                redoStack = [];
+            }
+
+            localStorage.setItem(STORAGE_KEY, currentJson);
+            lastSavedSnapshot = currentSnapshot;
+            updateHistoryButtons();
         }
 
         // ---------- Generazione ricorrenze ----------
@@ -783,33 +822,47 @@
             }
         }
 
+        function getFilteredTransactions(prefix) {
+            const descriptionEl = document.getElementById(`${prefix}description`);
+            const typeEl = document.getElementById(`${prefix}type`);
+            const categoryEl = document.getElementById(`${prefix}category`);
+            const fromEl = document.getElementById(`${prefix}date-from`);
+            const toEl = document.getElementById(`${prefix}date-to`);
+
+            const descriptionFilter = (descriptionEl?.value || '').trim().toLocaleLowerCase('it-IT');
+            const typeFilter = typeEl?.value || '';
+            const categoryFilter = categoryEl?.value || '';
+            const dateFrom = fromEl?.value || '';
+            const dateTo = toEl?.value || '';
+
+            return state.transactions.filter(t => {
+                if (descriptionFilter &&
+                    !String(t.description || '').toLocaleLowerCase('it-IT').includes(descriptionFilter)) {
+                    return false;
+                }
+                if (typeFilter && t.type !== typeFilter) return false;
+                if (categoryFilter && t.categoryId !== categoryFilter) return false;
+                if (dateFrom && t.date < dateFrom) return false;
+                if (dateTo && t.date > dateTo) return false;
+                return true;
+            }).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+        }
+
         function renderMovements() {
-            const monthFilter = document.getElementById('filter-month').value || getCurrentMonthKey();
-            const typeFilter = document.getElementById('filter-type').value;
-            const catFilter = document.getElementById('filter-category').value;
-
-            let filtered = state.transactions.slice();
-            if (monthFilter) {
-                filtered = filtered.filter(t => t.date.startsWith(monthFilter));
-            }
-            if (typeFilter) {
-                filtered = filtered.filter(t => t.type === typeFilter);
-            }
-            if (catFilter) {
-                filtered = filtered.filter(t => t.categoryId === catFilter);
-            }
-            filtered.sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
-
+            const filtered = getFilteredTransactions('filter-');
             const list = document.getElementById('transactions-list');
+
             if (filtered.length === 0) {
                 list.innerHTML = '<p class="muted">Nessun movimento trovato.</p>';
                 return;
             }
+
             list.innerHTML = filtered.map(t => {
                 const sign = t.type === 'income' ? '+' : '-';
                 const cls = t.type === 'income' ? 'amount-positive' : 'amount-negative';
                 const budget = t.budgetId ? state.budgets.find(b => b.id === t.budgetId) : null;
                 const budgetText = budget ? ` · Budget: ${budget.name}` : '';
+
                 return `
                     <div class="list-item">
                         <div>
@@ -897,9 +950,10 @@
         // ---------- Storico ----------
         function renderStorico() {
             const container = document.getElementById('storico-content');
-            const tx = state.transactions;
+            const tx = getFilteredTransactions('storico-filter-');
+
             if (tx.length === 0) {
-                container.innerHTML = '<p class="muted">Nessun movimento registrato.</p>';
+                container.innerHTML = '<p class="muted">Nessun movimento trovato con i filtri selezionati.</p>';
                 return;
             }
 
@@ -918,16 +972,24 @@
 
                 for (const monthKey of monthsInYear) {
                     const [yyyy, mm] = monthKey.split('-');
-                    const monthName = new Date(year, parseInt(mm)-1, 1).toLocaleString('it-IT', { month: 'long' });
+                    const monthName = new Date(year, parseInt(mm)-1, 1)
+                        .toLocaleString('it-IT', { month: 'long' });
                     const monthTx = tx.filter(t => t.date.startsWith(monthKey));
-                    const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-                    const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                    const income = monthTx
+                        .filter(t => t.type === 'income')
+                        .reduce((s, t) => s + t.amount, 0);
+                    const expense = monthTx
+                        .filter(t => t.type === 'expense')
+                        .reduce((s, t) => s + t.amount, 0);
                     const balance = income - expense;
 
                     const firstDay = `${monthKey}-01`;
                     const lastDayDate = new Date(year, parseInt(mm), 0);
                     const lastDay = toISO(lastDayDate);
-                    const activeBudgets = state.budgets.filter(b => b.startDate <= lastDay && b.endDate >= firstDay && b.active);
+
+                    const activeBudgets = state.budgets.filter(
+                        b => b.startDate <= lastDay && b.endDate >= firstDay && b.active
+                    );
 
                     html += `
                         <div class="month-item">
@@ -943,7 +1005,9 @@
                                 ${activeBudgets.length > 0 ? `
                                     <h4>Budget attivi</h4>
                                     ${activeBudgets.map(b => {
-                                        const spent = tx.filter(t => t.type === 'expense' && t.budgetId === b.id).reduce((s,t) => s+t.amount,0);
+                                        const spent = monthTx
+                                            .filter(t => t.type === 'expense' && t.budgetId === b.id)
+                                            .reduce((s,t) => s+t.amount,0);
                                         const remaining = b.amount - spent;
                                         return `<div class="muted">• ${b.name}: ${formatCurrency(remaining)} rimanenti</div>`;
                                     }).join('')}
@@ -957,7 +1021,7 @@
                                     const budgetText = budget ? ` · Budget: ${budget.name}` : '';
                                     return `
                                         <div class="transaction-mini">
-                                            <span>${t.date} · ${t.description}${budgetText}</span>
+                                            <span>${t.date} · ${t.description} · ${getCategoryName(t.categoryId)}${budgetText}</span>
                                             <span class="${cls}">${sign} ${formatCurrency(t.amount)}</span>
                                         </div>
                                     `;
@@ -985,13 +1049,13 @@
 
         // ---------- Popola i select delle categorie ----------
         function populateCategorySelects() {
-            const selects = ['tx-category', 'filter-category', 'budget-category', 'rule-category'];
+            const selects = ['tx-category', 'filter-category', 'storico-filter-category', 'budget-category', 'rule-category'];
             selects.forEach(id => {
                 const sel = document.getElementById(id);
                 if (!sel) return;
                 const currentVal = sel.value;
                 let options = '';
-                if (id === 'tx-category' || id === 'filter-category' || id === 'rule-category') {
+                if (id === 'tx-category' || id === 'filter-category' || id === 'storico-filter-category' || id === 'rule-category') {
                     options = '<option value="">Nessuna categoria</option>';
                 } else if (id === 'budget-category') {
                     options = '<option value="">Tutte</option>';
@@ -1180,6 +1244,24 @@
         });
 
         document.getElementById('apply-filters').addEventListener('click', renderMovements);
+        document.getElementById('clear-filters').addEventListener('click', function() {
+            document.getElementById('filter-description').value = '';
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-category').value = '';
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            renderMovements();
+        });
+
+        document.getElementById('storico-apply-filters').addEventListener('click', renderStorico);
+        document.getElementById('storico-clear-filters').addEventListener('click', function() {
+            document.getElementById('storico-filter-description').value = '';
+            document.getElementById('storico-filter-type').value = '';
+            document.getElementById('storico-filter-category').value = '';
+            document.getElementById('storico-filter-date-from').value = '';
+            document.getElementById('storico-filter-date-to').value = '';
+            renderStorico();
+        });
 
         // Navigazione
         document.querySelectorAll('nav button').forEach(btn => {
@@ -1202,7 +1284,6 @@
         // Inizializzazione
         function init() {
             document.getElementById('tx-date').value = toISO(new Date());
-            document.getElementById('filter-month').value = getCurrentMonthKey();
             populateCategorySelects();
             renderAll();
         }
@@ -1211,6 +1292,9 @@
         updateHistoryButtons();
 
         init();
+        historyReady = true;
+        lastSavedSnapshot = cloneForHistory(state);
+        updateHistoryButtons();
 
         // Registrazione del Service Worker
         if ('serviceWorker' in navigator) {

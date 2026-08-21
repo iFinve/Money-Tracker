@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --danger: #dc2626;
+            --success: #16a34a;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #111827;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding-bottom: 70px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        header {
+            background: var(--primary);
+            color: white;
+            padding: 16px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        nav {
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 56px;
+            z-index: 10;
+            flex-wrap: wrap;
+        }
+        nav button {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 12px 4px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        nav button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            font-weight: 600;
+        }
+        .section { display: none; padding: 16px; }
+        .section.active { display: block; }
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        h2 { font-size: 1.1rem; margin-bottom: 12px; }
+        h3 { font-size: 1rem; margin-bottom: 8px; }
+        .balance-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .balance-row:last-child { border-bottom: none; }
+        .positive { color: var(--success); font-weight: 600; }
+        .negative { color: var(--danger); font-weight: 600; }
+        form { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; font-weight: 500; }
+        input, select, button {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            width: 100%;
+        }
+        button[type="submit"] {
+            background: var(--primary);
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.delete {
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: auto;
+        }
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .list-item:last-child { border-bottom: none; }
+        .muted { color: var(--muted); font-size: 0.85rem; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            background: #e0e7ff;
+            color: var(--primary);
+        }
+        .progress {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: var(--success);
+            border-radius: 999px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .filters input, .filters select {
+            width: auto;
+            flex: 1;
+            min-width: 120px;
+        }
+        .amount-positive { color: var(--success); font-weight: 600; }
+        .amount-negative { color: var(--danger); font-weight: 600; }
+        .history-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 16px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+        }
+        .history-btn {
+            width: auto;
+            min-width: 120px;
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .history-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .filters button {
+            width: auto;
+            cursor: pointer;
+            background: white;
+        }
+        .filters button#apply-filters,
+        .filters button#history-apply-filters {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+        @media (max-width: 420px) {
+            .history-btn {
+                min-width: 100px;
+            }
+        }
+
+        /* Stili per lo storico */
+        .year-container { margin-bottom: 20px; }
+        .year-title {
+            background: var(--primary);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .month-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            cursor: pointer;
+            background: #f9fafb;
+        }
+        .month-summary {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+        }
+        .month-details {
+            padding: 0 16px 16px 16px;
+            display: none;
+        }
+        .month-details.open { display: block; }
+        .transaction-mini {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 0.9rem;
+            border-bottom: 1px dashed var(--border);
+        }
+        .transaction-mini:last-child { border-bottom: none; }
+        /* Interruttore */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--success);
+        }
+        input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+    </style>
+</head>
+<body>
+    <header>Money Tracker</header>
+    <nav>
+        <button data-section="dashboard" class="active">Dashboard</button>
+        <button data-section="movements">Movimenti</button>
+        <button data-section="categories">Categorie</button>
+        <button data-section="budgets">Budget</button>
+        <button data-section="rules">Regole</button>
+        <button data-section="storico">Storico</button>
+    </nav>
+
+    <div class="history-bar">
+        <button type="button" id="undo-btn" class="history-btn" title="Annulla" aria-label="Annulla">
+            ↶ <span>Annulla</span>
+        </button>
+        <button type="button" id="redo-btn" class="history-btn" title="Ripristina" aria-label="Ripristina">
+            <span>Ripristina</span> ↷
+        </button>
+    </div>
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="section active">
+        <div class="card">
+            <h2>Saldo</h2>
+            <div class="balance-row">
+                <span>Saldo attuale</span>
+                <span id="balance-total" class="positive">0,00 €</span>
+            </div>
+            <div class="balance-row">
+                <span>Saldo mese corrente</span>
+                <span id="balance-month" class="positive">0,00 €</span>
+            </div>
+            <div class="balance-row">
+                <span>Saldo anno corrente</span>
+                <span id="balance-year" class="positive">0,00 €</span>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Budget attivi</h2>
+            <div id="dashboard-budgets">
+                <p class="muted">Nessun budget creato.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Movimenti -->
+    <section id="movements" class="section">
+        <div class="card">
+            <h2>Nuovo movimento</h2>
+            <form id="transaction-form">
+                <div class="grid-2">
+                    <div>
+                        <label>Tipo</label>
+                        <select id="tx-type">
+                            <option value="expense">Uscita</option>
+                            <option value="income">Entrata</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Importo (€)</label>
+                        <input type="number" id="tx-amount" step="0.01" min="0.01" required>
+                    </div>
+                </div>
+                <div>
+                    <label>Data</label>
+                    <input type="date" id="tx-date" required>
+                </div>
+                <div>
+                    <label>Causale / Descrizione</label>
+                    <input type="text" id="tx-desc" placeholder="Es. Spesa supermercato, bonifico..." required>
+                </div>
+                <div>
+                    <label>Categoria</label>
+                    <select id="tx-category">
+                        <option value="">Nessuna categoria</option>
+                    </select>
+                </div>
+                <button type="submit">Aggiungi</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>Elenco movimenti</h2>
+            <div class="filters">
+                <input type="text" id="filter-description" placeholder="Causale...">
+                <select id="filter-type">
+                    <option value="">Tutti i tipi</option>
+                    <option value="income">Entrate</option>
+                    <option value="expense">Uscite</option>
+                </select>
+                <select id="filter-category">
+                    <option value="">Tutte le categorie</option>
+                </select>
+                <div class="grid-2" style="width:100%;">
+                    <div>
+                        <label>Da data</label>
+                        <input type="date" id="filter-date-from">
+                    </div>
+                    <div>
+                        <label>A data</label>
+                        <input type="date" id="filter-date-to">
+                    </div>
+                </div>
+                <button type="button" id="apply-filters">Filtra</button>
+                <button type="button" id="clear-filters">Azzera filtri</button>
+            </div>
+            <div id="transactions-list"></div>
+        </div>
+    </section>
+
+    <!-- Categorie -->
+    <section id="categories" class="section">
+        <div class="card">
+            <h2>Nuova categoria</h2>
+            <form id="category-form">
+                <div>
+                    <label>Nome categoria</label>
+                    <input type="text" id="category-name" placeholder="Es. Spese auto" required>
+                </div>
+                <button type="submit">Aggiungi categoria</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>Categorie esistenti</h2>
+            <div id="categories-list"></div>
+        </div>
+    </section>
+
+    <!-- Budget -->
+    <section id="budgets" class="section">
+        <div class="card">
+            <h2>Nuovo budget</h2>
+            <form id="budget-form">
+                <div>
+                    <label>Nome budget</label>
+                    <input type="text" id="budget-name" placeholder="Es. Ferie" required>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label>Importo (€)</label>
+                        <input type="number" id="budget-amount" step="0.01" min="0.01" required>
+                    </div>
+                    <div>
+                        <label>Categoria (opzionale)</label>
+                        <select id="budget-category">
+                            <option value="">Tutte</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <label>Data inizio</label>
+                        <input type="date" id="budget-start" required>
+                    </div>
+                    <div>
+                        <label>Data fine</label>
+                        <input type="date" id="budget-end" required>
+                    </div>
+                </div>
+                <div>
+                    <label>
+                        <input type="checkbox" id="budget-active" checked>
+                        Attivo
+                    </label>
+                </div>
+                <button type="submit">Crea budget</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>Budget creati</h2>
+            <div id="budgets-list"></div>
+        </div>
+    </section>
+
+    <!-- Regole ricorrenti -->
+    <section id="rules" class="section">
+        <div class="card">
+            <h2>Nuova regola ricorrente</h2>
+            <form id="rule-form">
+                <div class="grid-2">
+                    <div>
+                        <label>Tipo</label>
+                        <select id="rule-type">
+                            <option value="expense">Uscita</option>
+                            <option value="income">Entrata</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Importo (€)</label>
+                        <input type="number" id="rule-amount" step="0.01" min="0.01" required>
+                    </div>
+                </div>
+                <div>
+                    <label>Descrizione</label>
+                    <input type="text" id="rule-desc" placeholder="Es. Investimento mensile" required>
+                </div>
+                <div>
+                    <label>Frequenza</label>
+                    <select id="rule-frequency">
+                        <option value="monthly">Mensile (giorno del mese)</option>
+                        <option value="last_working_day">Ultimo giorno lavorativo del mese</option>
+                    </select>
+                </div>
+                <div id="rule-day-container">
+                    <label>Giorno del mese</label>
+                    <input type="number" id="rule-day" min="1" max="31" value="1">
+                </div>
+                <div>
+                    <label>Categoria</label>
+                    <select id="rule-category">
+                        <option value="">Nessuna categoria</option>
+                    </select>
+                </div>
+                <div>
+                    <label>
+                        <input type="checkbox" id="rule-active" checked>
+                        Attiva
+                    </label>
+                </div>
+                <button type="submit">Crea regola</button>
+            </form>
+        </div>
+        <div class="card">
+            <h2>Regole esistenti</h2>
+            <div id="rules-list"></div>
+        </div>
+    </section>
+
+    <!-- Storico -->
+    <section id="storico" class="section">
+        <div class="card">
+            <h2>Archivio storico</h2>
+            <p class="muted">Clicca su un anno per vedere i mesi, poi su un mese per i dettagli.</p>
+            <div class="filters">
+                <input type="text" id="history-filter-description" placeholder="Causale...">
+                <select id="history-filter-type">
+                    <option value="">Tutti i tipi</option>
+                    <option value="income">Entrate</option>
+                    <option value="expense">Uscite</option>
+                </select>
+                <select id="history-filter-category">
+                    <option value="">Tutte le categorie</option>
+                </select>
+                <div class="grid-2" style="width:100%;">
+                    <div>
+                        <label>Da data</label>
+                        <input type="date" id="history-filter-date-from">
+                    </div>
+                    <div>
+                        <label>A data</label>
+                        <input type="date" id="history-filter-date-to">
+                    </div>
+                </div>
+                <button type="button" id="history-apply-filters">Filtra</button>
+                <button type="button" id="history-clear-filters">Azzera filtri</button>
+            </div>
+            <div id="storico-content"></div>
+        </div>
+    </section>
+
+    <script>
+        const STORAGE_KEY = 'moneyTrackerAppState_v1';
+        const HISTORY_LIMIT = 50;
+        let undoStack = [];
+        let redoStack = [];
+        let isRestoringHistory = false;
+
+        function cloneState(value) {
+            return JSON.parse(JSON.stringify(value));
+        }
+
+        function pushUndoSnapshot(snapshot) {
+            if (isRestoringHistory) return;
+            undoStack.push(cloneState(snapshot));
+            if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+            redoStack = [];
+            updateHistoryButtons();
+        }
+
+        function updateHistoryButtons() {
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
+            if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+            if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+        }
+
+        function undo() {
+            if (!undoStack.length) return;
+            redoStack.push(cloneState(state));
+            state = undoStack.pop();
+            isRestoringHistory = true;
+            saveState();
+            isRestoringHistory = false;
+            renderAll();
+            updateHistoryButtons();
+        }
+
+        function redo() {
+            if (!redoStack.length) return;
+            undoStack.push(cloneState(state));
+            state = redoStack.pop();
+            isRestoringHistory = true;
+            saveState();
+            isRestoringHistory = false;
+            renderAll();
+            updateHistoryButtons();
+        }
+
+        function commitStateChange(previousState) {
+            pushUndoSnapshot(previousState);
+            saveState();
+            renderAll();
+        }
+
+
+        // ---------- Utility ----------
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(val);
+        }
+
+        function toISO(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function parseISO(str) {
+            const [y, m, d] = str.split('-').map(Number);
+            return new Date(y, m - 1, d);
+        }
+
+        function isSameDate(d1, d2) {
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+
+        function getEasterSunday(year) {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function isItalianHoliday(date) {
+            const y = date.getFullYear();
+            const m = date.getMonth();
+            const d = date.getDate();
+            const fixed = [
+                [1, 1], [6, 1], [25, 4], [1, 5], [2, 6],
+                [15, 8], [1, 11], [8, 12], [25, 12], [26, 12]
+            ];
+            for (const [mm, dd] of fixed) {
+                if (m === mm - 1 && d === dd) return true;
+            }
+            const easter = getEasterSunday(y);
+            if (isSameDate(date, easter)) return true;
+            const easterMonday = new Date(easter);
+            easterMonday.setDate(easter.getDate() + 1);
+            if (isSameDate(date, easterMonday)) return true;
+            return false;
+        }
+
+        function getLastWorkingDay(year, month0) {
+            const lastDay = new Date(year, month0 + 1, 0).getDate();
+            for (let d = lastDay; d >= 1; d--) {
+                const date = new Date(year, month0, d);
+                const dow = date.getDay();
+                if (dow !== 0 && dow !== 6 && !isItalianHoliday(date)) {
+                    return d;
+                }
+            }
+            return lastDay;
+        }
+
+        // ---------- Stato iniziale ----------
+        function defaultState() {
+            return {
+                transactions: [],
+                categories: [
+                    { id: 'cat_auto', name: 'Spese auto' },
+                    { id: 'cat_food', name: 'Alimentari' },
+                    { id: 'cat_house', name: 'Casa' },
+                    { id: 'cat_health', name: 'Salute' },
+                    { id: 'cat_other', name: 'Altro' }
+                ],
+                rules: [
+                    {
+                        id: 'rule_salary_600',
+                        type: 'income',
+                        amount: 600,
+                        description: 'Acconto stipendio',
+                        frequency: 'last_working_day',
+                        dayOfMonth: null,
+                        categoryId: null,
+                        active: true,
+                        startDate: ''
+                    }
+                ],
+                budgets: []
+            };
+        }
+
+        let state = loadState();
+
+        function loadState() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    return JSON.parse(stored);
+                } catch (e) {
+                    return defaultState();
+                }
+            }
+            return defaultState();
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        // ---------- Generazione ricorrenze ----------
+        function generateRecurring() {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth();
+            const todayISO = toISO(today);
+
+            state.rules.forEach(rule => {
+                if (!rule.active) return;
+                let start;
+                if (rule.startDate && rule.startDate !== '') {
+                    start = parseISO(rule.startDate);
+                } else {
+                    start = new Date(currentYear, currentMonth, 1);
+                }
+                let iter = new Date(start.getFullYear(), start.getMonth(), 1);
+                const endIter = new Date(currentYear, currentMonth, 1);
+
+                while (iter <= endIter) {
+                    let occDate = null;
+                    if (rule.frequency === 'last_working_day') {
+                        const day = getLastWorkingDay(iter.getFullYear(), iter.getMonth());
+                        occDate = new Date(iter.getFullYear(), iter.getMonth(), day);
+                    } else if (rule.frequency === 'monthly') {
+                        const lastDay = new Date(iter.getFullYear(), iter.getMonth() + 1, 0).getDate();
+                        const day = Math.min(rule.dayOfMonth || 1, lastDay);
+                        occDate = new Date(iter.getFullYear(), iter.getMonth(), day);
+                    }
+                    if (occDate && occDate <= today) {
+                        const occISO = toISO(occDate);
+                        const recurringKey = rule.id + '_' + occISO;
+                        if (!state.transactions.some(t => t.recurringKey === recurringKey)) {
+                            state.transactions.push({
+                                id: generateId(),
+                                type: rule.type,
+                                amount: rule.amount,
+                                date: occISO,
+                                description: rule.description,
+                                categoryId: rule.categoryId || null,
+                                recurringKey: recurringKey,
+                                ruleId: rule.id,
+                                budgetId: null
+                            });
+                        }
+                    }
+                    iter = new Date(iter.getFullYear(), iter.getMonth() + 1, 1);
+                }
+            });
+            saveState();
+        }
+
+        // ---------- Rendering ----------
+        function getCategoryName(id) {
+            if (!id) return 'Senza categoria';
+            const cat = state.categories.find(c => c.id === id);
+            return cat ? cat.name : 'Senza categoria';
+        }
+
+        function renderDashboard() {
+            const tx = state.transactions;
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth();
+
+            const totalIncome = tx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const totalExpense = tx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const balance = totalIncome - totalExpense;
+            document.getElementById('balance-total').textContent = formatCurrency(balance);
+            document.getElementById('balance-total').className = balance >= 0 ? 'positive' : 'negative';
+
+            const monthTx = tx.filter(t => {
+                const d = parseISO(t.date);
+                return d.getFullYear() === y && d.getMonth() === m;
+            });
+            const monthIncome = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const monthExpense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const monthBalance = monthIncome - monthExpense;
+            document.getElementById('balance-month').textContent = formatCurrency(monthBalance);
+            document.getElementById('balance-month').className = monthBalance >= 0 ? 'positive' : 'negative';
+
+            const yearTx = tx.filter(t => parseISO(t.date).getFullYear() === y);
+            const yearIncome = yearTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const yearExpense = yearTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const yearBalance = yearIncome - yearExpense;
+            document.getElementById('balance-year').textContent = formatCurrency(yearBalance);
+            document.getElementById('balance-year').className = yearBalance >= 0 ? 'positive' : 'negative';
+
+            const budgetsDiv = document.getElementById('dashboard-budgets');
+            if (state.budgets.length === 0) {
+                budgetsDiv.innerHTML = '<p class="muted">Nessun budget creato.</p>';
+            } else {
+                budgetsDiv.innerHTML = state.budgets.map(b => {
+                    const expenses = tx.filter(t => t.type === 'expense' && t.budgetId === b.id);
+                    const spent = expenses.reduce((s, t) => s + t.amount, 0);
+                    const remaining = b.amount - spent;
+                    const progress = b.amount > 0 ? Math.min(100, (spent / b.amount) * 100) : 0;
+                    return `
+                        <div class="list-item">
+                            <div>
+                                <strong>${b.name} ${b.active ? '' : '(disattivato)'}</strong>
+                                <div class="muted">${b.startDate} → ${b.endDate}</div>
+                                <div class="muted">Rimanente: ${formatCurrency(remaining)}</div>
+                                <div class="progress"><div class="progress-bar" style="width:${progress}%"></div></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function getMovementFilters(prefix = 'filter') {
+            return {
+                description: (document.getElementById(`${prefix}-description`)?.value || '').trim().toLowerCase(),
+                type: document.getElementById(`${prefix}-type`)?.value || '',
+                category: document.getElementById(`${prefix}-category`)?.value || '',
+                dateFrom: document.getElementById(`${prefix}-date-from`)?.value || '',
+                dateTo: document.getElementById(`${prefix}-date-to`)?.value || ''
+            };
+        }
+
+        function filterTransactions(transactions, filters) {
+            return transactions.filter(t => {
+                if (filters.description && !String(t.description || '').toLowerCase().includes(filters.description)) return false;
+                if (filters.type && t.type !== filters.type) return false;
+                if (filters.category && t.categoryId !== filters.category) return false;
+                if (filters.dateFrom && t.date < filters.dateFrom) return false;
+                if (filters.dateTo && t.date > filters.dateTo) return false;
+                return true;
+            });
+        }
+
+        function renderMovements() {
+            const filters = getMovementFilters('filter');
+            let filtered = filterTransactions(state.transactions.slice(), filters);
+            filtered.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+            const list = document.getElementById('transactions-list');
+            if (filtered.length === 0) {
+                list.innerHTML = '<p class="muted">Nessun movimento trovato.</p>';
+                return;
+            }
+            list.innerHTML = filtered.map(t => {
+                const sign = t.type === 'income' ? '+' : '-';
+                const cls = t.type === 'income' ? 'amount-positive' : 'amount-negative';
+                const budget = t.budgetId ? state.budgets.find(b => b.id === t.budgetId) : null;
+                const budgetText = budget ? ` · Budget: ${budget.name}` : '';
+                return `
+                    <div class="list-item">
+                        <div>
+                            <strong>${t.description}</strong>
+                            <div class="muted">${t.date} · ${getCategoryName(t.categoryId)}${budgetText}</div>
+                            ${t.recurringKey ? '<span class="badge">ricorrente</span>' : ''}
+                        </div>
+                        <div style="text-align:right">
+                            <span class="${cls}">${sign} ${formatCurrency(t.amount)}</span>
+                            <br>
+                            <button class="delete" onclick="deleteTransaction('${t.id}')">Elimina</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCategories() {
+            const list = document.getElementById('categories-list');
+            if (state.categories.length === 0) {
+                list.innerHTML = '<p class="muted">Nessuna categoria.</p>';
+                return;
+            }
+            list.innerHTML = state.categories.map(c => `
+                <div class="list-item">
+                    <span>${c.name}</span>
+                    <button class="delete" onclick="deleteCategory('${c.id}')">Elimina</button>
+                </div>
+            `).join('');
+        }
+
+        function renderBudgets() {
+            const list = document.getElementById('budgets-list');
+            if (state.budgets.length === 0) {
+                list.innerHTML = '<p class="muted">Nessun budget creato.</p>';
+                return;
+            }
+            const tx = state.transactions;
+            list.innerHTML = state.budgets.map(b => {
+                const expenses = tx.filter(t => t.type === 'expense' && t.budgetId === b.id);
+                const spent = expenses.reduce((s, t) => s + t.amount, 0);
+                const remaining = b.amount - spent;
+                const progress = b.amount > 0 ? Math.min(100, (spent / b.amount) * 100) : 0;
+                return `
+                    <div class="list-item">
+                        <div style="flex:1">
+                            <strong>${b.name}</strong>
+                            <div class="muted">${b.startDate} → ${b.endDate}</div>
+                            <div class="muted">Speso: ${formatCurrency(spent)} · Rimanente: ${formatCurrency(remaining)}</div>
+                            <div class="progress"><div class="progress-bar" style="width:${progress}%"></div></div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <label class="switch">
+                                <input type="checkbox" ${b.active ? 'checked' : ''} onchange="toggleBudgetActive('${b.id}')">
+                                <span class="slider"></span>
+                            </label>
+                            <button class="delete" onclick="deleteBudget('${b.id}')">Elimina</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderRules() {
+            const list = document.getElementById('rules-list');
+            if (state.rules.length === 0) {
+                list.innerHTML = '<p class="muted">Nessuna regola creata.</p>';
+                return;
+            }
+            list.innerHTML = state.rules.map(r => {
+                const freqText = r.frequency === 'last_working_day' ? 'Ultimo giorno lavorativo' : `Mensile (giorno ${r.dayOfMonth})`;
+                return `
+                    <div class="list-item">
+                        <div>
+                            <strong>${r.description}</strong>
+                            <div class="muted">${r.type === 'income' ? 'Entrata' : 'Uscita'} · ${freqText}</div>
+                            <div class="muted">Importo: ${formatCurrency(r.amount)} · ${r.active ? 'Attiva' : 'Disattivata'}</div>
+                        </div>
+                        <button class="delete" onclick="deleteRule('${r.id}')">Elimina</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ---------- Storico ----------
+        function renderStorico() {
+            const container = document.getElementById('storico-content');
+            const filters = getMovementFilters('history-filter');
+            const tx = filterTransactions(state.transactions.slice(), filters);
+
+            if (tx.length === 0) {
+                container.innerHTML = '<p class="muted">Nessun movimento trovato con i filtri selezionati.</p>';
+                return;
+            }
+
+            const years = [...new Set(tx.map(t => parseISO(t.date).getFullYear()))].sort((a,b) => b-a);
+
+            let html = '';
+            for (const year of years) {
+                html += `<div class="year-container">`;
+                html += `<div class="year-title" onclick="toggleYear('${year}')">📅 ${year}</div>`;
+                html += `<div id="year-${year}" style="display:none;">`;
+
+                const monthsInYear = [...new Set(tx
+                    .filter(t => parseISO(t.date).getFullYear() === year)
+                    .map(t => t.date.substring(0,7))
+                )].sort();
+
+                for (const monthKey of monthsInYear) {
+                    const [yyyy, mm] = monthKey.split('-');
+                    const monthName = new Date(year, parseInt(mm)-1, 1).toLocaleString('it-IT', { month: 'long' });
+                    const monthTx = tx.filter(t => t.date.startsWith(monthKey));
+                    const income = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+                    const expense = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                    const balance = income - expense;
+
+                    const firstDay = `${monthKey}-01`;
+                    const lastDayDate = new Date(year, parseInt(mm), 0);
+                    const lastDay = toISO(lastDayDate);
+                    const activeBudgets = state.budgets.filter(b => b.startDate <= lastDay && b.endDate >= firstDay && b.active);
+
+                    html += `
+                        <div class="month-item">
+                            <div class="month-header" onclick="toggleMonth('${year}-${mm}')">
+                                <span><strong>${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}</strong></span>
+                                <div class="month-summary">
+                                    <span class="amount-positive">+${formatCurrency(income)}</span>
+                                    <span class="amount-negative">-${formatCurrency(expense)}</span>
+                                    <span class="${balance >= 0 ? 'positive' : 'negative'}">${formatCurrency(balance)}</span>
+                                </div>
+                            </div>
+                            <div class="month-details" id="month-${year}-${mm}">
+                                ${activeBudgets.length > 0 ? `
+                                    <h4>Budget attivi</h4>
+                                    ${activeBudgets.map(b => {
+                                        const spent = tx.filter(t => t.type === 'expense' && t.budgetId === b.id).reduce((s,t) => s+t.amount,0);
+                                        const remaining = b.amount - spent;
+                                        return `<div class="muted">• ${b.name}: ${formatCurrency(remaining)} rimanenti</div>`;
+                                    }).join('')}
+                                ` : '<p class="muted">Nessun budget attivo in questo mese.</p>'}
+
+                                <h4>Movimenti (${monthTx.length})</h4>
+                                ${monthTx.length > 0 ? monthTx.map(t => {
+                                    const sign = t.type === 'income' ? '+' : '-';
+                                    const cls = t.type === 'income' ? 'amount-positive' : 'amount-negative';
+                                    const budget = t.budgetId ? state.budgets.find(b => b.id === t.budgetId) : null;
+                                    const budgetText = budget ? ` · Budget: ${budget.name}` : '';
+                                    return `
+                                        <div class="transaction-mini">
+                                            <span>${t.date} · ${t.description} · ${getCategoryName(t.categoryId)}${budgetText}</span>
+                                            <span class="${cls}">${sign} ${formatCurrency(t.amount)}</span>
+                                        </div>
+                                    `;
+                                }).join('') : '<p class="muted">Nessun movimento.</p>'}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function toggleYear(year) {
+            const el = document.getElementById(`year-${year}`);
+            if (el.style.display === 'none') el.style.display = 'block';
+            else el.style.display = 'none';
+        }
+
+        function toggleMonth(key) {
+            const el = document.getElementById(`month-${key}`);
+            el.classList.toggle('open');
+        }
+
+        // ---------- Popola i select delle categorie ----------
+        function populateCategorySelects() {
+            const selects = ['tx-category', 'filter-category', 'budget-category', 'rule-category'];
+            selects.forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                const currentVal = sel.value;
+                let options = '';
+                if (id === 'tx-category' || id === 'rule-category') {
+                    options = '<option value="">Nessuna categoria</option>';
+                } else if (id === 'filter-category') {
+                    options = '<option value="">Tutte le categorie</option>';
+                } else if (id === 'budget-category') {
+                    options = '<option value="">Tutte</option>';
+                }
+                options += state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                sel.innerHTML = options;
+                if (currentVal && [...sel.options].some(o => o.value === currentVal)) {
+                    sel.value = currentVal;
+                }
+            });
+        }
+
+        function getCurrentMonthKey() {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        function renderAll() {
+            generateRecurring();
+            populateCategorySelects();
+            renderDashboard();
+            renderMovements();
+            renderCategories();
+            renderBudgets();
+            renderRules();
+            renderStorico();
+        }
+
+        // ---------- Azioni ----------
+        function deleteTransaction(id) {
+            const previous = cloneState(state);
+            state.transactions = state.transactions.filter(t => t.id !== id);
+            commitStateChange(previous);
+        }
+
+        function deleteCategory(id) {
+            if (!confirm('Eliminare questa categoria?')) return;
+            const previous = cloneState(state);
+            state.categories = state.categories.filter(c => c.id !== id);
+            state.transactions.forEach(t => { if (t.categoryId === id) t.categoryId = null; });
+            state.budgets.forEach(b => { if (b.categoryId === id) b.categoryId = null; });
+            state.rules.forEach(r => { if (r.categoryId === id) r.categoryId = null; });
+            commitStateChange(previous);
+        }
+
+        function deleteBudget(id) {
+            if (!confirm('Eliminare questo budget? Le spese associate non verranno eliminate.')) return;
+            const previous = cloneState(state);
+            state.budgets = state.budgets.filter(b => b.id !== id);
+            state.transactions.forEach(t => { if (t.budgetId === id) t.budgetId = null; });
+            commitStateChange(previous);
+        }
+
+        function toggleBudgetActive(id) {
+            const budget = state.budgets.find(b => b.id === id);
+            if (budget) {
+                const previous = cloneState(state);
+                budget.active = !budget.active;
+                commitStateChange(previous);
+            }
+        }
+
+        function deleteRule(id) {
+            if (!confirm('Eliminare questa regola? I movimenti già generati non verranno eliminati.')) return;
+            const previous = cloneState(state);
+            state.rules = state.rules.filter(r => r.id !== id);
+            commitStateChange(previous);
+        }
+
+        // ---------- Form submission ----------
+        document.getElementById('transaction-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const type = document.getElementById('tx-type').value;
+            const amount = parseFloat(document.getElementById('tx-amount').value);
+            const date = document.getElementById('tx-date').value;
+            const description = document.getElementById('tx-desc').value.trim();
+            const categoryId = document.getElementById('tx-category').value || null;
+
+            if (!amount || !date || !description) {
+                alert('Compila tutti i campi obbligatori.');
+                return;
+            }
+
+            const previous = cloneState(state);
+            let assignedBudgetId = null;
+            if (type === 'expense') {
+                const activeBudgets = state.budgets.filter(b => b.active && date >= b.startDate && date <= b.endDate && (!b.categoryId || b.categoryId === categoryId));
+                if (activeBudgets.length > 0) {
+                    assignedBudgetId = activeBudgets[0].id;
+                }
+            }
+
+            state.transactions.push({
+                id: generateId(),
+                type,
+                amount,
+                date,
+                description,
+                categoryId,
+                budgetId: assignedBudgetId
+            });
+
+            commitStateChange(previous);
+            document.getElementById('transaction-form').reset();
+            document.getElementById('tx-date').value = toISO(new Date());
+            renderAll();
+        });
+
+        document.getElementById('category-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('category-name').value.trim();
+            if (!name) return;
+            const previous = cloneState(state);
+            state.categories.push({ id: generateId(), name });
+            commitStateChange(previous);
+            document.getElementById('category-form').reset();
+            renderAll();
+        });
+
+        document.getElementById('budget-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('budget-name').value.trim();
+            const amount = parseFloat(document.getElementById('budget-amount').value);
+            const startDate = document.getElementById('budget-start').value;
+            const endDate = document.getElementById('budget-end').value;
+            const categoryId = document.getElementById('budget-category').value || null;
+            const active = document.getElementById('budget-active').checked;
+
+            if (!name || !amount || !startDate || !endDate) {
+                alert('Compila tutti i campi.');
+                return;
+            }
+            if (endDate < startDate) {
+                alert('La data di fine deve essere successiva alla data di inizio.');
+                return;
+            }
+
+            const previous = cloneState(state);
+            state.budgets.push({
+                id: generateId(),
+                name,
+                amount,
+                startDate,
+                endDate,
+                categoryId,
+                active
+            });
+            commitStateChange(previous);
+            document.getElementById('budget-form').reset();
+            renderAll();
+        });
+
+        document.getElementById('rule-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const type = document.getElementById('rule-type').value;
+            const amount = parseFloat(document.getElementById('rule-amount').value);
+            const description = document.getElementById('rule-desc').value.trim();
+            const frequency = document.getElementById('rule-frequency').value;
+            const categoryId = document.getElementById('rule-category').value || null;
+            const active = document.getElementById('rule-active').checked;
+            const dayOfMonth = frequency === 'monthly' ? parseInt(document.getElementById('rule-day').value) || 1 : null;
+
+            if (!description || !amount) {
+                alert('Compila tutti i campi.');
+                return;
+            }
+
+            const previous = cloneState(state);
+            state.rules.push({
+                id: generateId(),
+                type,
+                amount,
+                description,
+                frequency,
+                dayOfMonth,
+                categoryId,
+                active,
+                startDate: ''
+            });
+            commitStateChange(previous);
+            document.getElementById('rule-form').reset();
+            document.getElementById('rule-type').value = 'expense';
+            document.getElementById('rule-frequency').value = 'monthly';
+            document.getElementById('rule-day-container').style.display = 'block';
+            renderAll();
+        });
+
+        document.getElementById('rule-frequency').addEventListener('change', function() {
+            document.getElementById('rule-day-container').style.display = this.value === 'monthly' ? 'block' : 'none';
+        });
+
+        document.getElementById('apply-filters').addEventListener('click', renderMovements);
+
+
+        // ---------- Filtri ----------
+        document.getElementById('apply-filters').addEventListener('click', renderMovements);
+        document.getElementById('clear-filters').addEventListener('click', function() {
+            ['filter-description','filter-type','filter-category','filter-date-from','filter-date-to'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            renderMovements();
+        });
+
+        document.getElementById('history-apply-filters').addEventListener('click', renderStorico);
+        document.getElementById('history-clear-filters').addEventListener('click', function() {
+            ['history-filter-description','history-filter-type','history-filter-category','history-filter-date-from','history-filter-date-to'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            renderStorico();
+        });
+
+        document.getElementById('undo-btn').addEventListener('click', undo);
+        document.getElementById('redo-btn').addEventListener('click', redo);
+
+        // Navigazione
+        document.querySelectorAll('nav button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const sectionId = this.dataset.section;
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.getElementById(sectionId).classList.add('active');
+                if (sectionId === 'movements') {
+                    populateCategorySelects();
+                    renderMovements();
+                }
+                if (sectionId === 'storico') {
+                    renderStorico();
+                }
+            });
+        });
+
+        // Inizializzazione
+        function init() {
+            document.getElementById('tx-date').value = toISO(new Date());
+            document.getElementById('filter-month')?.remove();
+            populateCategorySelects();
+            updateHistoryButtons();
+            renderAll();
+        }
+        init();
+
+        // Registrazione del Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
+    </script>
+</body>
+</html>
